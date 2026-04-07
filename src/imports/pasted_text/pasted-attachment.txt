@@ -1,0 +1,235 @@
+Update the existing Financial Advisor CRM Dashboard UI with the following corrections and improvements. Keep the overall layout, color scheme, and design exactly the same unless specified below.
+
+1️⃣ Remove Duplicate Settings Section
+
+Currently there are two Settings sections in the sidebar.
+
+Fix this by:
+
+Removing the newly added Settings section
+
+Keeping only one Settings / Profile section
+
+The remaining Settings section should contain the previously defined advisor profile fields, including:
+
+Upload IRDAI License Certificate
+
+Years of Experience
+
+Specialization (multi-select)
+
+Companies They Work With
+
+Location Information (City, State, Country – default India)
+
+Profile Photo
+
+Short Bio / About
+
+Languages Spoken
+
+2️⃣ Remove Notifications Section
+
+Remove the Notifications section completely from the sidebar.
+
+Do not replace it with anything.
+
+The sidebar should only contain:
+
+Dashboard
+
+Client Management
+
+Policy Management
+
+Claims Tracker
+
+Tasks / Follow-ups
+
+Reports & Analytics
+
+Settings
+
+3️⃣ Fix Sidebar Active State Bug
+
+Currently multiple sections turn orange at the same time when clicked.
+
+Fix the navigation behavior so that:
+
+Only the currently active section is highlighted in orange.
+
+When a new section is clicked, the previous section should return to its normal color.
+
+Only one sidebar item can be active at a time.
+
+Example behavior:
+
+Click Dashboard → Dashboard turns orange
+Click Client Management → Dashboard returns to default color and Client Management becomes orange.
+
+4️⃣ Client Management Improvements
+
+Inside Client Management, improve the View Client Profile functionality.
+
+When clicking View Client Profile, it should open a complete client profile page.
+
+Client Profile Page Structure
+Personal Details Section
+
+Display:
+
+Full Name
+
+Mobile Number
+
+Email
+
+Date of Birth
+
+Address
+
+City
+
+State
+
+Country
+
+Occupation
+
+Income Range
+
+Risk Profile
+
+Policies Owned Section
+
+Table showing:
+
+Policy Name
+
+Insurance Provider
+
+Policy Type
+
+Premium Amount
+
+Start Date
+
+Expiry Date
+
+Status
+
+Claims History Section
+
+Table showing:
+
+Claim ID
+
+Policy Name
+
+Claim Amount
+
+Claim Status
+
+Claim Date
+
+Advisor Notes Section
+
+Private notes where advisors can write information about the client.
+
+Example:
+
+“Client interested in upgrading health coverage next year.”
+
+Client Documents Section (NEW)
+
+Add a separate Documents section inside the client profile.
+
+This should allow:
+
+Upload Document
+
+View Uploaded Documents
+
+Download Documents
+
+Examples of documents:
+
+ID proof
+
+Policy documents
+
+Claim documents
+
+KYC documents
+
+5️⃣ Tasks Section Improvement
+
+Keep the Tasks / Follow-ups section exactly the same except for improving the Create Task button.
+
+When clicking Create Task, open a task creation form with the following fields:
+
+Task Title
+
+Date
+
+Time
+
+Priority
+
+Status
+
+Priority options:
+
+High
+
+Medium
+
+Low
+
+Status options:
+
+Pending
+
+In Progress
+
+Completed
+
+Do not modify any other part of the task section.
+
+6️⃣ Theme Requirements (Keep Same)
+
+Light Mode:
+
+Bright Orange
+
+White
+
+Dark Mode:
+
+Pure Black background
+
+Sage Green accents
+
+Olive Green highlights
+
+Do not introduce any additional colors such as purple or blue.
+
+7️⃣ Important Instruction
+
+Do not redesign the dashboard.
+
+Only:
+
+fix the sidebar active state issue
+
+remove duplicate settings
+
+remove notifications
+
+improve client profile
+
+add client documents section
+
+update task creation fields
+
+Everything else should remain exactly the same.
