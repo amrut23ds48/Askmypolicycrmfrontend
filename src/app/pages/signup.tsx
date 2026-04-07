@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-
 import { User, Mail, Phone, Lock, Eye, EyeOff, Briefcase, FileText } from "lucide-react";
+import { supabase } from "../../lib/supabase";
 
 export function Signup() {
   const [formData, setFormData] = useState({
@@ -15,6 +15,7 @@ export function Signup() {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const professionalRoles = [
@@ -32,14 +33,59 @@ export function Signup() {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
       alert("Passwords do not match!");
       return;
     }
-    // Simulate signup - in production, this would call an API
-    navigate("/dashboard");
+
+    setLoading(true);
+    try {
+      // 1. Get Role ID
+      const { data: roleData, error: roleError } = await supabase
+        .from("roles")
+        .select("id")
+        .eq("name", formData.professionalRole)
+        .single();
+
+      if (roleError) throw new Error("Could not find the selected role. Please contact support.");
+
+      // 2. Auth Signup
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.fullName,
+          },
+        },
+      });
+
+      if (authError) throw authError;
+      if (!authData.user) throw new Error("User creation failed.");
+
+      // 3. Insert into Advisors Table
+      const { error: advisorError } = await supabase.from("advisors").insert({
+        id: authData.user.id,
+        full_name: formData.fullName,
+        email: formData.email,
+        mobile_number: formData.mobile,
+        role_id: roleData.id,
+        irdai_licence: formData.irdaiLicense,
+      });
+
+      if (advisorError) throw advisorError;
+
+      alert("Sign up successful! Please check your email for verification.");
+      alert("Sign up successful! Please check your email for verification.");
+      navigate("/dashboard/settings");
+    } catch (err: any) {
+      console.error("Signup error:", err);
+      alert(err.message || "An error occurred during signup.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

@@ -1,18 +1,36 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 
-import { Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, Loader2 } from "lucide-react";
+import { supabase } from "../../lib/supabase";
+import { toast } from "sonner";
 
 export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate login - in production, this would call an API
-    navigate("/dashboard");
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      toast.success("Logged in successfully");
+      navigate("/dashboard");
+    } catch (err: any) {
+      toast.error(err.message || "An error occurred during login");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -99,9 +117,17 @@ export function Login() {
             {/* Login Button */}
             <button
               type="submit"
-              className="w-full py-3 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity font-medium"
+              disabled={loading}
+              className="w-full py-3 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity font-medium flex items-center justify-center gap-2"
             >
-              Login
+              {loading ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Logging in...
+                </>
+              ) : (
+                "Login"
+              )}
             </button>
 
             {/* Divider */}

@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Outlet, Link, useLocation } from "react-router";
+import { useState, useEffect } from "react";
+import { Outlet, Link, useLocation, useNavigate } from "react-router";
+import { supabase } from "../../lib/supabase";
 
 import { 
   LayoutDashboard, 
@@ -22,7 +23,36 @@ import {
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
+  const [user, setUser] = useState<{ full_name: string; role_name?: string } | null>(null);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchUser();
+  }, []);
+
+  const fetchUser = async () => {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      const { data: advisor } = await supabase
+        .from("advisors")
+        .select("full_name, roles(name)")
+        .eq("id", authUser.id)
+        .single();
+      
+      if (advisor) {
+        setUser({
+          full_name: advisor.full_name,
+          role_name: (advisor.roles as any)?.name || "Financial Advisor"
+        });
+      }
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/login");
+  };
 
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
@@ -132,9 +162,9 @@ export function Layout() {
             {sidebarOpen && <span>Notifications</span>}
           </Link>
           <Link
-            to="/settings"
+            to="/dashboard/settings"
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-              isActive("/settings")
+              isActive("/dashboard/settings")
                 ? "bg-sidebar-primary text-sidebar-primary-foreground"
                 : "text-sidebar-foreground hover:bg-sidebar-accent"
             }`}
@@ -198,18 +228,23 @@ export function Layout() {
             {/* Profile */}
             <div className="flex items-center gap-2 pl-3 border-l border-border">
               <div className="size-10 rounded-full bg-primary flex items-center justify-center">
-                <span className="text-sm text-primary-foreground font-semibold">JD</span>
+                <span className="text-sm text-primary-foreground font-semibold">
+                  {user?.full_name ? user.full_name.split(" ").map(n => n[0]).join("").toUpperCase() : "JD"}
+                </span>
               </div>
               <div className="hidden md:block">
-                <p className="text-sm font-medium">John Doe</p>
-                <p className="text-xs text-muted-foreground">Financial Advisor</p>
+                <p className="text-sm font-medium">{user?.full_name || "John Doe"}</p>
+                <p className="text-xs text-muted-foreground">{user?.role_name || "Financial Advisor"}</p>
               </div>
               <button className="p-1 rounded hover:bg-muted">
                 <ChevronDown className="size-4 text-muted-foreground" />
               </button>
             </div>
 
-            <button className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-destructive">
+            <button 
+              onClick={handleLogout}
+              className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-destructive"
+            >
               <LogOut className="size-5" />
             </button>
           </div>
