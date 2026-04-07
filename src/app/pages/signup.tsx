@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-<img src="/images/logo.png" />
+
 import { User, Mail, Phone, Lock, Eye, EyeOff, Briefcase, FileText } from "lucide-react";
 
 export function Signup() {

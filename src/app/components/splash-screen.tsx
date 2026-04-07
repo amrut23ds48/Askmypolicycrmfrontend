@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-<img 
-  src="/images/splash.png" />
+
 
 interface SplashScreenProps {
   onComplete: () => void;

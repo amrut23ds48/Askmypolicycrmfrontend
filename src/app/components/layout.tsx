@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router";
-<img 
-  src="/images/logo.png" />
+
 import { 
   LayoutDashboard, 
   Users, 
