@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import logoImage from "figma:asset/6c5f51fa8ed1fdaead024bcfb4537846d4633cc3.png";
+<img src="/images/logo.png" />
 import { User, Mail, Phone, Lock, Eye, EyeOff, Briefcase, FileText } from "lucide-react";
 
 export function Signup() {
@@ -47,7 +47,7 @@ export function Signup() {
       <div className="w-full max-w-2xl">
         {/* Logo */}
         <div className="text-center mb-8">
-          <img src={logoImage} alt="Ask My Policy" className="h-16 mx-auto mb-4" />
+          <img src="/images/logo.png" alt="Ask My Policy" className="h-16 mx-auto mb-4" />
           <h1 className="text-2xl font-semibold mb-2">Create Your Account</h1>
           <p className="text-sm text-muted-foreground">
             Join thousands of insurance professionals managing their business better

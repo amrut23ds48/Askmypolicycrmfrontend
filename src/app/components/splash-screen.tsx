@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import splashLogo from "figma:asset/71015905f6d0bffa5ea8281519768e1cb47b94bb.png";
+<img 
+  src="/images/splash.png" />
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -35,7 +36,7 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
         {/* Logo with subtle scale animation */}
         <div className="animate-pulse-slow">
           <img 
-            src={splashLogo} 
+            src="/images/splash.png" 
             alt="Ask My Policy" 
             className="w-48 h-48 md:w-64 md:h-64 object-contain"
           />

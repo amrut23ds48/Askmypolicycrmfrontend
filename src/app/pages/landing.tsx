@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import logoImage from "figma:asset/6c5f51fa8ed1fdaead024bcfb4537846d4633cc3.png";
+<img src="/images/logo.png" />
 import { 
   Users, 
   FileText, 
@@ -77,7 +77,7 @@ export function Landing() {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <div className="flex items-center">
-              <img src={logoImage} alt="Ask My Policy" className="h-10" />
+              <img src="/images/logo.png" alt="Ask My Policy" className="h-10" />
             </div>
 
             {/* Desktop Navigation */}

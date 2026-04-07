@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Outlet, Link, useLocation } from "react-router";
-import logoImage from "figma:asset/6c5f51fa8ed1fdaead024bcfb4537846d4633cc3.png";
+<img 
+  src="/images/logo.png" />
 import { 
   LayoutDashboard, 
   Users, 
@@ -55,9 +56,9 @@ export function Layout() {
         {/* Logo */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
           {sidebarOpen ? (
-            <img src={logoImage} alt="Ask My Policy" className="h-10" />
+            <img src="/images/logo.png" alt="Ask My Policy" className="h-10" />
           ) : (
-            <img src={logoImage} alt="Ask My Policy" className="h-8 mx-auto" />
+            <img src="/images/logo.png" alt="Ask My Policy" className="h-8 mx-auto" />
           )}
           {sidebarOpen && (
             <button
