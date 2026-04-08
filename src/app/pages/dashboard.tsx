@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { 
   Users, 
   FileText, 
@@ -14,58 +15,27 @@ import {
 } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { AIInsights } from "../components/ai-insights";
+import { supabase } from "../../lib/supabase"; // Same path as in signup
 
-const kpiCards = [
-  { 
-    title: "Total Clients", 
-    value: "16,341", 
-    change: "+15.3%", 
-    trend: "up", 
-    icon: Users,
-    color: "bg-blue-500"
-  },
-  { 
-    title: "Active Policies", 
-    value: "125", 
-    change: "+2.3%", 
-    trend: "up", 
-    icon: FileText,
-    color: "bg-green-500"
-  },
-  { 
-    title: "Policies Expiring Soon", 
-    value: "17", 
-    change: "+7.5%", 
-    trend: "down", 
-    icon: Clock,
-    color: "bg-orange-500"
-  },
-  { 
-    title: "Claims In Progress", 
-    value: "8", 
-    change: "-12.5%", 
-    trend: "up", 
-    icon: ClipboardList,
-    color: "bg-purple-500"
-  },
-  { 
-    title: "Monthly Revenue", 
-    value: "₹84,250", 
-    change: "+18.2%", 
-    trend: "up", 
-    icon: DollarSign,
-    color: "bg-primary"
-  },
-  { 
-    title: "Reports Generated", 
-    value: "42", 
-    change: "+5.1%", 
-    trend: "up", 
-    icon: BarChart3,
-    color: "bg-cyan-500"
-  },
-];
+interface DashboardData {
+  kpis: {
+    total_clients: number;
+    active_policies: number;
+    expiring_policies: number;
+    claims_in_progress: number;
+  };
+  policy_distribution: Array<{
+    type: string;
+    count: number;
+  }>;
+  claims_status: {
+    in_progress: number;
+    completed: number;
+    started: number;
+  };
+}
 
+// Static data
 const clientGrowthData = [
   { month: "Jan", clients: 14200, policies: 98, revenue: 62000 },
   { month: "Feb", clients: 14800, policies: 105, revenue: 68000 },
@@ -75,23 +45,7 @@ const clientGrowthData = [
   { month: "Jun", clients: 16341, policies: 125, revenue: 84250 },
 ];
 
-const policyDistribution = [
-  { name: "Health Insurance", value: 35, count: 44 },
-  { name: "Life Insurance", value: 28, count: 35 },
-  { name: "Investment Plans", value: 20, count: 25 },
-  { name: "Property Insurance", value: 12, count: 15 },
-  { name: "Auto Insurance", value: 5, count: 6 },
-];
-
 const COLORS = ["#ff6b35", "#4ecdc4", "#ffe66d", "#95e1d3", "#f38181"];
-
-const claimsStatus = [
-  { status: "Submitted", count: 15 },
-  { status: "Under Review", count: 8 },
-  { status: "Approved", count: 42 },
-  { status: "Rejected", count: 3 },
-  { status: "Pending Docs", count: 5 },
-];
 
 const alerts = [
   { 
@@ -150,6 +104,115 @@ const recentActivities = [
 ];
 
 export function Dashboard() {
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        // Get current user from Supabase (same as signup)
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        
+        if (userError) {
+          console.error('Error getting user:', userError);
+          setError('Authentication error');
+          setLoading(false);
+          return;
+        }
+
+        if (!user) {
+          console.log('No user logged in');
+          setLoading(false);
+          return;
+        }
+
+        const advisorId = user.id;
+        console.log('Fetching data for advisor:', advisorId);
+        
+        // Call your backend API
+        const response = await fetch(`http://localhost:3000/api/dashboard/${advisorId}`);
+        const result = await response.json();
+        
+        console.log('API Response:', result);
+        
+        if (result.success) {
+          setDashboardData(result.data);
+        } else {
+          setError('Failed to load dashboard data');
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        setError('Error loading data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
+
+  const getKpiCards = () => {
+    const staticKpis = [
+      { title: "Monthly Revenue", value: "₹84,250", change: "+18.2%", trend: "up", icon: DollarSign, color: "bg-primary" },
+      { title: "Reports Generated", value: "42", change: "+5.1%", trend: "up", icon: BarChart3, color: "bg-cyan-500" }
+    ];
+
+    if (!dashboardData) return staticKpis;
+
+    const dynamicKpis = [
+      { title: "Total Clients", value: dashboardData.kpis.total_clients.toLocaleString(), change: "+15.3%", trend: "up", icon: Users, color: "bg-blue-500" },
+      { title: "Active Policies", value: dashboardData.kpis.active_policies.toLocaleString(), change: "+2.3%", trend: "up", icon: FileText, color: "bg-green-500" },
+      { title: "Policies Expiring Soon", value: dashboardData.kpis.expiring_policies.toLocaleString(), change: "+7.5%", trend: "down", icon: Clock, color: "bg-orange-500" },
+      { title: "Claims In Progress", value: dashboardData.kpis.claims_in_progress.toLocaleString(), change: "-12.5%", trend: "up", icon: ClipboardList, color: "bg-purple-500" }
+    ];
+
+    return [...dynamicKpis, ...staticKpis];
+  };
+
+  const getPolicyDistribution = () => {
+    if (!dashboardData) return [];
+    return dashboardData.policy_distribution.map(item => ({
+      name: item.type,
+      value: item.count,
+      count: item.count
+    }));
+  };
+
+  const getClaimsStatus = () => {
+    if (!dashboardData) return [];
+    return [
+      { status: "In Progress", count: dashboardData.claims_status.in_progress },
+      { status: "Completed", count: dashboardData.claims_status.completed },
+      { status: "Started", count: dashboardData.claims_status.started },
+    ];
+  };
+
+  const kpiCards = getKpiCards();
+  const policyDistribution = getPolicyDistribution();
+  const claimsStatus = getClaimsStatus();
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Loading dashboard data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 flex items-center justify-center min-h-[400px]">
+        <div className="text-center text-red-500">
+          <p>{error}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Quick Actions Bar */}
@@ -234,8 +297,8 @@ export function Dashboard() {
                 }} 
               />
               <Legend />
-              <Line key="clients-line" type="monotone" dataKey="clients" stroke="#ff6b35" strokeWidth={2} name="Total Clients" />
-              <Line key="policies-line" type="monotone" dataKey="policies" stroke="#4ecdc4" strokeWidth={2} name="Active Policies" />
+              <Line type="monotone" dataKey="clients" stroke="#ff6b35" strokeWidth={2} name="Total Clients" />
+              <Line type="monotone" dataKey="policies" stroke="#4ecdc4" strokeWidth={2} name="Active Policies" />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -248,44 +311,50 @@ export function Dashboard() {
               <p className="text-sm text-muted-foreground">By insurance type</p>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <PieChart>
-              <Pie
-                data={policyDistribution}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={90}
-                paddingAngle={5}
-                dataKey="value"
-              >
-                {policyDistribution.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'var(--card)', 
-                  border: '1px solid var(--border)',
-                  borderRadius: '8px'
-                }} 
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="space-y-2 mt-4">
-            {policyDistribution.map((item, index) => (
-              <div key={index} className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="size-3 rounded-full" 
-                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
+          {policyDistribution.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie
+                    data={policyDistribution}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={90}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {policyDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'var(--card)', 
+                      border: '1px solid var(--border)',
+                      borderRadius: '8px'
+                    }} 
                   />
-                  <span className="text-muted-foreground">{item.name}</span>
-                </div>
-                <span className="font-medium">{item.value}%</span>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-2 mt-4">
+                {policyDistribution.map((item, index) => (
+                  <div key={index} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="size-3 rounded-full" 
+                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                      />
+                      <span className="text-muted-foreground">{item.name}</span>
+                    </div>
+                    <span className="font-medium">{item.value}%</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">No policy data available</div>
+          )}
         </div>
       </div>
 
@@ -299,21 +368,25 @@ export function Dashboard() {
               <p className="text-sm text-muted-foreground">Current claims overview</p>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={claimsStatus}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="status" stroke="var(--muted-foreground)" tick={{ fontSize: 10 }} />
-              <YAxis stroke="var(--muted-foreground)" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'var(--card)', 
-                  border: '1px solid var(--border)',
-                  borderRadius: '8px'
-                }} 
-              />
-              <Bar dataKey="count" fill="#ff6b35" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {claimsStatus.length > 0 ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={claimsStatus}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="status" stroke="var(--muted-foreground)" tick={{ fontSize: 10 }} />
+                <YAxis stroke="var(--muted-foreground)" />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'var(--card)', 
+                    border: '1px solid var(--border)',
+                    borderRadius: '8px'
+                  }} 
+                />
+                <Bar dataKey="count" fill="#ff6b35" radius={[8, 8, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">No claims data available</div>
+          )}
         </div>
 
         {/* AI Insights */}
