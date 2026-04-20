@@ -145,10 +145,10 @@ export function Settings() {
         if (profilesById && profilesById.length > 0) profileDataRaw = profilesById[0];
       }
 
-      // 4. Fetch Company data
+      // 4. Fetch Company data with company name join
       const { data: companies } = await supabase
         .from("advisor_companies")
-        .select("*")
+        .select("*, insurance_companies(company_name)")
         .eq("advisor_id", authUser.id)
         .limit(1);
       
@@ -170,7 +170,7 @@ export function Settings() {
       setProfessionalData({
         irdaiLicense: advisor?.irdai_licence || "",
         experience: profileDataRaw?.experience_years?.toString() || "",
-        companyName: company?.company_id || "", 
+        companyName: (company?.insurance_companies as any)?.company_name || "", 
         certUrl: profileDataRaw?.certificate_url || "",
         aadharUrl: profileDataRaw?.aadhar_url || "", 
         videoUrl: profileDataRaw?.video_url || profileDataRaw?.verification_url || "",
@@ -265,8 +265,9 @@ export function Settings() {
       await supabase.from("profiles").upsert({
         advisor_id: user.id,
         address: profileData.address,
+        city: profileData.city,
+        state: profileData.state,
         short_bio: profileData.shortBio,
-        // city, state if needed
       });
 
       // Update Company
@@ -327,14 +328,22 @@ export function Settings() {
         certificate_url: professionalData.certUrl,
       });
 
-      // Update Company
+      // Update Company - look up UUID from insurance_companies by name
       if (professionalData.companyName) {
-        await supabase.from("advisor_companies").upsert({
-          advisor_id: user.id,
-          company_id: professionalData.companyName, // Treating name as ID per current loose schema
-          contact_email: profileData.email,
-          contact_no: profileData.phone,
-        });
+        const { data: companyData } = await supabase
+          .from("insurance_companies")
+          .select("id")
+          .eq("company_name", professionalData.companyName)
+          .maybeSingle();
+
+        if (companyData) {
+          await supabase.from("advisor_companies").upsert({
+            advisor_id: user.id,
+            company_id: companyData.id,
+            contact_email: profileData.email,
+            contact_no: profileData.phone,
+          });
+        }
       }
 
       toast.success("Profile updated");

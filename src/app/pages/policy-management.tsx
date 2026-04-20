@@ -1,284 +1,238 @@
-import { useState } from "react";
-import { Plus, Search, Filter, Download, Eye, Edit, Upload, FileText } from "lucide-react";
-
-const policies = [
-  {
-    id: "POL-1001",
-    clientName: "Sarah Mitchell",
-    policyName: "Comprehensive Health Insurance",
-    type: "Health Insurance",
-    provider: "HealthFirst Insurance",
-    premium: "$450/month",
-    startDate: "2023-01-01",
-    expiryDate: "2026-12-31",
-    status: "Active",
-    documents: 3
-  },
-  {
-    id: "POL-1002",
-    clientName: "David Chen",
-    policyName: "Term Life Insurance - 20 Year",
-    type: "Life Insurance",
-    provider: "SecureLife Corp",
-    premium: "$85/month",
-    startDate: "2022-06-01",
-    expiryDate: "2042-05-31",
-    status: "Active",
-    documents: 2
-  },
-  {
-    id: "POL-1003",
-    clientName: "Emma Wilson",
-    policyName: "Property Insurance - Home",
-    type: "Property Insurance",
-    provider: "SafeHome Insurance",
-    premium: "$120/month",
-    startDate: "2024-01-15",
-    expiryDate: "2027-01-14",
-    status: "Active",
-    documents: 5
-  },
-  {
-    id: "POL-1004",
-    clientName: "Michael Brown",
-    policyName: "Investment Growth Plan",
-    type: "Investment Plan",
-    provider: "WealthBuilder Financial",
-    premium: "$500/month",
-    startDate: "2023-09-01",
-    expiryDate: "2033-08-31",
-    status: "Active",
-    documents: 4
-  },
-  {
-    id: "POL-1005",
-    clientName: "Olivia Martinez",
-    policyName: "Auto Insurance - Premium",
-    type: "Auto Insurance",
-    provider: "DriveSecure Insurance",
-    premium: "$180/month",
-    startDate: "2025-03-01",
-    expiryDate: "2026-02-28",
-    status: "Expiring Soon",
-    documents: 2
-  },
-  {
-    id: "POL-1006",
-    clientName: "James Taylor",
-    policyName: "Critical Illness Cover",
-    type: "Health Insurance",
-    provider: "HealthFirst Insurance",
-    premium: "$200/month",
-    startDate: "2021-11-01",
-    expiryDate: "2025-10-31",
-    status: "Expired",
-    documents: 3
-  },
-];
+import { useState, useEffect } from "react";
+import { Plus, Search, Download, Eye, Edit, FileText, AlertCircle, Clock, CheckCircle2, Loader2 } from "lucide-react";
+import { useAuth } from "../../lib/auth-context";
+import { getPolicies, getPolicyStats, type Policy, type PolicyFilters } from "../../lib/services/policies";
+import { AddPolicyDialog } from "../components/add-policy-dialog";
 
 export function PolicyManagement() {
+  const { advisor } = useAuth();
+  const [policies, setPolicies] = useState<Policy[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [stats, setStats] = useState({ total: 0, active: 0, expired: 0, expiringSoon: 0, typeDistribution: {} as Record<string, number> });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Active": return "text-green-600 bg-green-50 dark:bg-green-950/20";
-      case "Expired": return "text-gray-600 bg-gray-50 dark:bg-gray-950/20";
-      case "Expiring Soon": return "text-orange-600 bg-orange-50 dark:bg-orange-950/20";
-      default: return "text-gray-600 bg-gray-50 dark:bg-gray-950/20";
+  useEffect(() => {
+    if (advisor?.id) {
+      fetchData();
+    }
+  }, [advisor?.id, filterType, filterStatus]);
+
+  const fetchData = async () => {
+    if (!advisor) return;
+    setLoading(true);
+    try {
+      const filters: PolicyFilters = {};
+      if (filterType !== "all") filters.policy_type = filterType;
+      if (filterStatus !== "all") filters.status = filterStatus;
+
+      const [policiesData, statsData] = await Promise.all([
+        getPolicies(advisor.id, filters),
+        getPolicyStats(advisor.id),
+      ]);
+      setPolicies(policiesData);
+      setStats(statsData);
+    } catch (err) {
+      console.error("Error fetching policies:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      "Health Insurance": "text-blue-600 bg-blue-50 dark:bg-blue-950/20",
-      "Life Insurance": "text-purple-600 bg-purple-50 dark:bg-purple-950/20",
-      "Property Insurance": "text-green-600 bg-green-50 dark:bg-green-950/20",
-      "Investment Plan": "text-orange-600 bg-orange-50 dark:bg-orange-950/20",
-      "Auto Insurance": "text-cyan-600 bg-cyan-50 dark:bg-cyan-950/20",
-    };
-    return colors[type] || "text-gray-600 bg-gray-50 dark:bg-gray-950/20";
+  // Client-side search
+  const filteredPolicies = searchQuery
+    ? policies.filter(p =>
+        (p.client_name?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (p.policy_number?.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (p.policy_type?.toLowerCase().includes(searchQuery.toLowerCase()))
+      )
+    : policies;
+
+  const getStatusConfig = (status: string | null) => {
+    switch (status?.toLowerCase()) {
+      case "active": return { color: "text-green-600 bg-green-50 dark:bg-green-950/20", icon: CheckCircle2 };
+      case "expired": return { color: "text-gray-600 bg-gray-50 dark:bg-gray-950/20", icon: AlertCircle };
+      case "cancelled": return { color: "text-red-600 bg-red-50 dark:bg-red-950/20", icon: AlertCircle };
+      default: return { color: "text-gray-600 bg-gray-50 dark:bg-gray-950/20", icon: Clock };
+    }
   };
+
+  const isExpiringSoon = (endDate: string | null) => {
+    if (!endDate) return false;
+    const end = new Date(endDate);
+    const now = new Date();
+    const diffDays = (end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    return diffDays > 0 && diffDays <= 30;
+  };
+
+  const policyTypes = [...new Set(policies.map(p => p.policy_type).filter(Boolean))] as string[];
+
+  if (loading && policies.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="size-8 animate-spin text-primary" />
+        <p className="ml-2 text-muted-foreground">Loading policies...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header Actions */}
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-card rounded-xl p-5 border border-border">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-blue-100 dark:bg-blue-950/20 rounded-lg">
+              <FileText className="size-5 text-blue-600" />
+            </div>
+            <p className="text-sm text-muted-foreground">Total Policies</p>
+          </div>
+          <p className="text-2xl font-bold">{stats.total}</p>
+        </div>
+        <div className="bg-card rounded-xl p-5 border border-border">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-green-100 dark:bg-green-950/20 rounded-lg">
+              <CheckCircle2 className="size-5 text-green-600" />
+            </div>
+            <p className="text-sm text-muted-foreground">Active</p>
+          </div>
+          <p className="text-2xl font-bold">{stats.active}</p>
+        </div>
+        <div className="bg-card rounded-xl p-5 border border-border">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-orange-100 dark:bg-orange-950/20 rounded-lg">
+              <Clock className="size-5 text-orange-600" />
+            </div>
+            <p className="text-sm text-muted-foreground">Expiring Soon</p>
+          </div>
+          <p className="text-2xl font-bold text-orange-600">{stats.expiringSoon}</p>
+        </div>
+        <div className="bg-card rounded-xl p-5 border border-border">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-gray-100 dark:bg-gray-950/20 rounded-lg">
+              <AlertCircle className="size-5 text-gray-600" />
+            </div>
+            <p className="text-sm text-muted-foreground">Expired</p>
+          </div>
+          <p className="text-2xl font-bold">{stats.expired}</p>
+        </div>
+      </div>
+
+      {/* Actions Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3 flex-1 max-w-xl">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search policies by name, client, or ID..."
+              placeholder="Search by policy number, type, or client..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-input-background rounded-lg border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
-          <button className="px-4 py-2.5 bg-card border border-border rounded-lg hover:bg-accent transition-colors flex items-center gap-2">
-            <Filter className="size-4" />
-            <span className="hidden sm:inline">Filters</span>
-          </button>
         </div>
         <div className="flex gap-2">
-          <button className="px-4 py-2.5 bg-card border border-border rounded-lg hover:bg-accent transition-colors flex items-center gap-2">
-            <Upload className="size-4" />
-            Upload Document
-          </button>
-          <button className="px-4 py-2.5 bg-card border border-border rounded-lg hover:bg-accent transition-colors flex items-center gap-2">
-            <Download className="size-4" />
-            Export
-          </button>
-          <button className="px-4 py-2.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2">
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
+            className="px-3 py-2.5 bg-card border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="all">All Types</option>
+            {policyTypes.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-3 py-2.5 bg-card border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="expired">Expired</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <button
+            onClick={() => setShowAddDialog(true)}
+            className="px-4 py-2.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
+          >
             <Plus className="size-4" />
             Add Policy
           </button>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-card rounded-xl p-5 border border-border">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-green-100 dark:bg-green-950/20 rounded-lg">
-              <FileText className="size-5 text-green-600" />
-            </div>
-            <p className="text-sm text-muted-foreground">Total Policies</p>
-          </div>
-          <p className="text-2xl font-semibold">{policies.length}</p>
-        </div>
-        <div className="bg-card rounded-xl p-5 border border-border">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-blue-100 dark:bg-blue-950/20 rounded-lg">
-              <FileText className="size-5 text-blue-600" />
-            </div>
-            <p className="text-sm text-muted-foreground">Active Policies</p>
-          </div>
-          <p className="text-2xl font-semibold">{policies.filter(p => p.status === "Active").length}</p>
-        </div>
-        <div className="bg-card rounded-xl p-5 border border-border">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-orange-100 dark:bg-orange-950/20 rounded-lg">
-              <FileText className="size-5 text-orange-600" />
-            </div>
-            <p className="text-sm text-muted-foreground">Expiring Soon</p>
-          </div>
-          <p className="text-2xl font-semibold">{policies.filter(p => p.status === "Expiring Soon").length}</p>
-        </div>
-        <div className="bg-card rounded-xl p-5 border border-border">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-gray-100 dark:bg-gray-950/20 rounded-lg">
-              <FileText className="size-5 text-gray-600" />
-            </div>
-            <p className="text-sm text-muted-foreground">Expired Policies</p>
-          </div>
-          <p className="text-2xl font-semibold">{policies.filter(p => p.status === "Expired").length}</p>
-        </div>
-      </div>
-
-      {/* Filters Bar */}
-      <div className="flex flex-wrap items-center gap-4 p-4 bg-card rounded-lg border border-border">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-muted-foreground">Policy Type:</label>
-          <select 
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            className="px-3 py-1.5 bg-input-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="all">All Types</option>
-            <option value="Health Insurance">Health Insurance</option>
-            <option value="Life Insurance">Life Insurance</option>
-            <option value="Property Insurance">Property Insurance</option>
-            <option value="Investment Plan">Investment Plan</option>
-            <option value="Auto Insurance">Auto Insurance</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-muted-foreground">Status:</label>
-          <select 
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-1.5 bg-input-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="all">All Status</option>
-            <option value="Active">Active</option>
-            <option value="Expiring Soon">Expiring Soon</option>
-            <option value="Expired">Expired</option>
-          </select>
-        </div>
-        <div className="ml-auto text-sm text-muted-foreground">
-          Showing {policies.length} policies
+      {/* Policies Table */}
+      <div className="bg-card rounded-xl border border-border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-muted/50 border-b border-border">
+              <tr>
+                <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Policy Number</th>
+                <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Client</th>
+                <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Type</th>
+                <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Company</th>
+                <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Premium</th>
+                <th className="text-left px-6 py-4 text-sm font-medium text-muted-foreground">Expiry</th>
+                <th className="text-center px-6 py-4 text-sm font-medium text-muted-foreground">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filteredPolicies.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground">
+                    {policies.length === 0 ? "No policies yet. Click 'Add Policy' to get started." : "No policies match your search."}
+                  </td>
+                </tr>
+              ) : (
+                filteredPolicies.map((policy) => {
+                  const statusConfig = getStatusConfig(policy.status);
+                  const expiring = isExpiringSoon(policy.end_date);
+                  return (
+                    <tr key={policy.id} className={`hover:bg-muted/30 transition-colors ${expiring ? "bg-orange-50/50 dark:bg-orange-950/10" : ""}`}>
+                      <td className="px-6 py-4">
+                        <span className="font-medium">{policy.policy_number || policy.id.slice(0, 12)}</span>
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground">{policy.client_name}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{policy.policy_type || "—"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{policy.company_name || "—"}</td>
+                      <td className="px-6 py-4 font-medium">
+                        {policy.premium_amount ? `₹${policy.premium_amount.toLocaleString()}` : "—"}
+                      </td>
+                      <td className="px-6 py-4">
+                        {policy.end_date ? (
+                          <div>
+                            <p className={`text-sm ${expiring ? "text-orange-600 font-medium" : "text-muted-foreground"}`}>
+                              {new Date(policy.end_date).toLocaleDateString()}
+                            </p>
+                            {expiring && <p className="text-xs text-orange-500">Expiring soon</p>}
+                          </div>
+                        ) : "—"}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusConfig.color}`}>
+                          {policy.status?.charAt(0).toUpperCase() + (policy.status?.slice(1) || '')}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
-      {/* Policy Cards Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {policies.map((policy) => (
-          <div key={policy.id} className="bg-card rounded-xl p-6 border border-border hover:shadow-lg transition-shadow">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <h3 className="font-semibold text-lg">{policy.policyName}</h3>
-                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${getStatusColor(policy.status)}`}>
-                    {policy.status}
-                  </span>
-                </div>
-                <p className="text-sm text-muted-foreground mb-1">{policy.provider}</p>
-                <p className="text-sm text-muted-foreground">Client: <span className="font-medium text-foreground">{policy.clientName}</span></p>
-              </div>
-              <div className="flex gap-2">
-                <button className="p-2 hover:bg-muted rounded-lg transition-colors" title="View Details">
-                  <Eye className="size-4 text-muted-foreground" />
-                </button>
-                <button className="p-2 hover:bg-muted rounded-lg transition-colors" title="Edit Policy">
-                  <Edit className="size-4 text-muted-foreground" />
-                </button>
-                <button className="p-2 hover:bg-muted rounded-lg transition-colors" title="Download Documents">
-                  <Download className="size-4 text-muted-foreground" />
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Policy ID</p>
-                <p className="text-sm font-medium">{policy.id}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Policy Type</p>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getTypeColor(policy.type)}`}>
-                  {policy.type}
-                </span>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Premium</p>
-                <p className="text-sm font-medium">{policy.premium}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Documents</p>
-                <p className="text-sm font-medium">{policy.documents} files</p>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-4 border-t border-border">
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <div>
-                  <p className="text-xs mb-0.5">Start Date</p>
-                  <p className="font-medium text-foreground">{new Date(policy.startDate).toLocaleDateString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs mb-0.5">Expiry Date</p>
-                  <p className="font-medium text-foreground">{new Date(policy.expiryDate).toLocaleDateString()}</p>
-                </div>
-              </div>
-              <button className="px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-sm hover:bg-primary/20 transition-colors">
-                View Details
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Add Policy Dialog */}
+      {advisor && (
+        <AddPolicyDialog
+          advisorId={advisor.id}
+          open={showAddDialog}
+          onClose={() => setShowAddDialog(false)}
+          onCreated={fetchData}
+        />
+      )}
     </div>
   );
 }

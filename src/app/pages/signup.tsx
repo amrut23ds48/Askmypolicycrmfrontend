@@ -78,7 +78,6 @@ export function Signup() {
       if (advisorError) throw advisorError;
 
       alert("Sign up successful! Please check your email for verification.");
-      alert("Sign up successful! Please check your email for verification.");
       navigate("/dashboard/settings");
     } catch (err: any) {
       console.error("Signup error:", err);

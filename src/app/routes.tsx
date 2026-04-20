@@ -1,5 +1,6 @@
 import { createBrowserRouter } from "react-router";
 import { Layout } from "./components/layout";
+import { ProtectedRoute } from "./components/protected-route";
 import { Dashboard } from "./pages/dashboard";
 import { ClientManagement } from "./pages/client-management";
 import { ClientProfile } from "./pages/client-profile";
@@ -8,6 +9,7 @@ import { ClaimsTracker } from "./pages/claims-tracker";
 import { Tasks } from "./pages/tasks";
 import { Reports } from "./pages/reports";
 import { Settings } from "./pages/settings";
+import { Notifications } from "./pages/notifications";
 import { Login } from "./pages/login";
 import { Signup } from "./pages/signup";
 import { Landing } from "./pages/landing";
@@ -28,17 +30,23 @@ export const router = createBrowserRouter([
   },
   {
     path: "/dashboard",
-    Component: Layout,
+    Component: ProtectedRoute,
     children: [
-      { index: true, Component: Dashboard },
-      { path: "clients", Component: ClientManagement },
-      { path: "clients/:id", Component: ClientProfile },
-      { path: "policies", Component: PolicyManagement },
-      { path: "claims", Component: ClaimsTracker },
-      { path: "tasks", Component: Tasks },
-      { path: "reports", Component: Reports },
-      { path: "settings", Component: Settings },
-      { path: "*", Component: NotFound },
+      {
+        Component: Layout,
+        children: [
+          { index: true, Component: Dashboard },
+          { path: "clients", Component: ClientManagement },
+          { path: "clients/:id", Component: ClientProfile },
+          { path: "policies", Component: PolicyManagement },
+          { path: "claims", Component: ClaimsTracker },
+          { path: "tasks", Component: Tasks },
+          { path: "reports", Component: Reports },
+          { path: "settings", Component: Settings },
+          { path: "notifications", Component: Notifications },
+          { path: "*", Component: NotFound },
+        ],
+      },
     ],
   },
 ]);

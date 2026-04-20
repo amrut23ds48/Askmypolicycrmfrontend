@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
-import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../lib/auth-context";
+import { getUnreadCount } from "../../lib/services/alerts";
 
 import { 
   LayoutDashboard, 
@@ -23,34 +24,19 @@ import {
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
-  const [user, setUser] = useState<{ full_name: string; role_name?: string } | null>(null);
+  const [unreadAlerts, setUnreadAlerts] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
+  const { advisor, signOut } = useAuth();
 
   useEffect(() => {
-    fetchUser();
-  }, []);
-
-  const fetchUser = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (authUser) {
-      const { data: advisor } = await supabase
-        .from("advisors")
-        .select("full_name, roles(name)")
-        .eq("id", authUser.id)
-        .single();
-      
-      if (advisor) {
-        setUser({
-          full_name: advisor.full_name,
-          role_name: (advisor.roles as any)?.name || "Financial Advisor"
-        });
-      }
+    if (advisor?.id) {
+      getUnreadCount(advisor.id).then(setUnreadAlerts).catch(console.error);
     }
-  };
+  }, [advisor?.id, location.pathname]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await signOut();
     navigate("/login");
   };
 
@@ -70,9 +56,12 @@ export function Layout() {
   ];
 
   const isActive = (path: string) => {
-    if (path === "/") return location.pathname === "/";
+    if (path === "/dashboard") return location.pathname === "/dashboard";
     return location.pathname.startsWith(path);
   };
+
+  const displayName = advisor?.full_name || "User";
+  const initials = displayName.split(" ").map(n => n[0]).join("").toUpperCase();
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
@@ -155,22 +144,22 @@ export function Layout() {
         {/* Bottom Actions */}
         <div className="p-3 border-t border-sidebar-border space-y-1">
           <Link
-            to="/notifications"
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors`}
-          >
-            <Bell className="size-5 flex-shrink-0" />
-            {sidebarOpen && <span>Notifications</span>}
-          </Link>
-          <Link
-            to="/dashboard/settings"
+            to="/dashboard/notifications"
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
-              isActive("/dashboard/settings")
+              isActive("/dashboard/notifications")
                 ? "bg-sidebar-primary text-sidebar-primary-foreground"
                 : "text-sidebar-foreground hover:bg-sidebar-accent"
             }`}
           >
-            <Settings className="size-5 flex-shrink-0" />
-            {sidebarOpen && <span>Settings</span>}
+            <div className="relative">
+              <Bell className="size-5 flex-shrink-0" />
+              {unreadAlerts > 0 && (
+                <span className="absolute -top-1 -right-1 size-4 bg-destructive rounded-full text-[10px] text-white flex items-center justify-center">
+                  {unreadAlerts > 9 ? '9+' : unreadAlerts}
+                </span>
+              )}
+            </div>
+            {sidebarOpen && <span>Notifications</span>}
           </Link>
         </div>
 
@@ -220,21 +209,23 @@ export function Layout() {
             </button>
 
             {/* Notifications */}
-            <button className="relative p-2 rounded-lg hover:bg-muted transition-colors">
+            <Link to="/dashboard/notifications" className="relative p-2 rounded-lg hover:bg-muted transition-colors">
               <Bell className="size-5 text-foreground" />
-              <span className="absolute top-1 right-1 size-2 bg-destructive rounded-full"></span>
-            </button>
+              {unreadAlerts > 0 && (
+                <span className="absolute top-1 right-1 size-2 bg-destructive rounded-full"></span>
+              )}
+            </Link>
 
             {/* Profile */}
             <div className="flex items-center gap-2 pl-3 border-l border-border">
               <div className="size-10 rounded-full bg-primary flex items-center justify-center">
                 <span className="text-sm text-primary-foreground font-semibold">
-                  {user?.full_name ? user.full_name.split(" ").map(n => n[0]).join("").toUpperCase() : "JD"}
+                  {initials}
                 </span>
               </div>
               <div className="hidden md:block">
-                <p className="text-sm font-medium">{user?.full_name || "John Doe"}</p>
-                <p className="text-xs text-muted-foreground">{user?.role_name || "Financial Advisor"}</p>
+                <p className="text-sm font-medium">{displayName}</p>
+                <p className="text-xs text-muted-foreground">Financial Advisor</p>
               </div>
               <button className="p-1 rounded hover:bg-muted">
                 <ChevronDown className="size-4 text-muted-foreground" />

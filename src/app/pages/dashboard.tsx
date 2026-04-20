@@ -1,457 +1,281 @@
-import { useEffect, useState } from "react";
-import { 
-  Users, 
-  FileText, 
-  Clock, 
-  ClipboardList, 
-  DollarSign, 
-  BarChart3,
-  TrendingUp,
-  TrendingDown,
-  ArrowUpRight,
-  AlertCircle,
-  Plus,
-  Download
-} from "lucide-react";
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { AIInsights } from "../components/ai-insights";
-import { supabase } from "../../lib/supabase"; // Same path as in signup
+import { useState, useEffect } from "react";
+import { Users, FileText, ClipboardList, CheckSquare, TrendingUp, AlertTriangle, Plus, ArrowRight, Loader2, Clock, DollarSign } from "lucide-react";
+import { useAuth } from "../../lib/auth-context";
+import { getDashboardKPIs, getPolicyDistribution, getClaimsStatusDistribution, getRecentActivities, type DashboardKPIs, type PolicyDistribution, type ClaimsStatusData, type RecentActivity } from "../../lib/services/dashboard";
+import { AddClientDialog } from "../components/add-client-dialog";
+import { AddPolicyDialog } from "../components/add-policy-dialog";
+import { AddTaskDialog } from "../components/add-task-dialog";
+import { Link } from "react-router";
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
-interface DashboardData {
-  kpis: {
-    total_clients: number;
-    active_policies: number;
-    expiring_policies: number;
-    claims_in_progress: number;
-  };
-  policy_distribution: Array<{
-    type: string;
-    count: number;
-  }>;
-  claims_status: {
-    in_progress: number;
-    completed: number;
-    started: number;
-  };
-}
-
-// Static data
-const clientGrowthData = [
-  { month: "Jan", clients: 14200, policies: 98, revenue: 62000 },
-  { month: "Feb", clients: 14800, policies: 105, revenue: 68000 },
-  { month: "Mar", clients: 15200, policies: 110, revenue: 71000 },
-  { month: "Apr", clients: 15600, policies: 115, revenue: 75000 },
-  { month: "May", clients: 15900, policies: 118, revenue: 78000 },
-  { month: "Jun", clients: 16341, policies: 125, revenue: 84250 },
-];
-
-const COLORS = ["#ff6b35", "#4ecdc4", "#ffe66d", "#95e1d3", "#f38181"];
-
-const alerts = [
-  { 
-    type: "warning", 
-    title: "Policies Expiring Soon", 
-    message: "17 policies are expiring within 30 days",
-    time: "2 hours ago"
-  },
-  { 
-    type: "info", 
-    title: "Pending Documents", 
-    message: "12 clients have pending document submissions",
-    time: "5 hours ago"
-  },
-  { 
-    type: "urgent", 
-    title: "Claims Awaiting Update", 
-    message: "8 claims require your immediate attention",
-    time: "1 day ago"
-  },
-];
-
-const recentActivities = [
-  {
-    id: 1,
-    action: "New client registered",
-    client: "Sarah Mitchell",
-    details: "Health Insurance inquiry",
-    time: "10 minutes ago",
-    avatar: "SM"
-  },
-  {
-    id: 2,
-    action: "Policy renewal completed",
-    client: "David Chen",
-    details: "Life Insurance Policy #LI-4521",
-    time: "1 hour ago",
-    avatar: "DC"
-  },
-  {
-    id: 3,
-    action: "Claim approved",
-    client: "Emma Wilson",
-    details: "Claim #CLM-8832 - $15,000",
-    time: "3 hours ago",
-    avatar: "EW"
-  },
-  {
-    id: 4,
-    action: "Task completed",
-    client: "Michael Brown",
-    details: "Follow-up call scheduled",
-    time: "5 hours ago",
-    avatar: "MB"
-  },
-];
+const PIE_COLORS = ["#f97316", "#3b82f6", "#10b981", "#8b5cf6", "#ec4899", "#eab308"];
 
 export function Dashboard() {
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const { advisor } = useAuth();
+  const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
+  const [policyDist, setPolicyDist] = useState<PolicyDistribution[]>([]);
+  const [claimsDist, setClaimsDist] = useState<ClaimsStatusData[]>([]);
+  const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [showAddPolicy, setShowAddPolicy] = useState(false);
+  const [showAddTask, setShowAddTask] = useState(false);
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        // Get current user from Supabase (same as signup)
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        
-        if (userError) {
-          console.error('Error getting user:', userError);
-          setError('Authentication error');
-          setLoading(false);
-          return;
-        }
+    if (advisor?.id) fetchDashboardData();
+  }, [advisor?.id]);
 
-        if (!user) {
-          console.log('No user logged in');
-          setLoading(false);
-          return;
-        }
-
-        const advisorId = user.id;
-        console.log('Fetching data for advisor:', advisorId);
-        
-        // Call your backend API
-        const response = await fetch(`http://localhost:3000/api/dashboard/${advisorId}`);
-        const result = await response.json();
-        
-        console.log('API Response:', result);
-        
-        if (result.success) {
-          setDashboardData(result.data);
-        } else {
-          setError('Failed to load dashboard data');
-        }
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        setError('Error loading data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, []);
-
-  const getKpiCards = () => {
-    const staticKpis = [
-      { title: "Monthly Revenue", value: "₹84,250", change: "+18.2%", trend: "up", icon: DollarSign, color: "bg-primary" },
-      { title: "Reports Generated", value: "42", change: "+5.1%", trend: "up", icon: BarChart3, color: "bg-cyan-500" }
-    ];
-
-    if (!dashboardData) return staticKpis;
-
-    const dynamicKpis = [
-      { title: "Total Clients", value: dashboardData.kpis.total_clients.toLocaleString(), change: "+15.3%", trend: "up", icon: Users, color: "bg-blue-500" },
-      { title: "Active Policies", value: dashboardData.kpis.active_policies.toLocaleString(), change: "+2.3%", trend: "up", icon: FileText, color: "bg-green-500" },
-      { title: "Policies Expiring Soon", value: dashboardData.kpis.expiring_policies.toLocaleString(), change: "+7.5%", trend: "down", icon: Clock, color: "bg-orange-500" },
-      { title: "Claims In Progress", value: dashboardData.kpis.claims_in_progress.toLocaleString(), change: "-12.5%", trend: "up", icon: ClipboardList, color: "bg-purple-500" }
-    ];
-
-    return [...dynamicKpis, ...staticKpis];
+  const fetchDashboardData = async () => {
+    if (!advisor) return;
+    setLoading(true);
+    try {
+      const [kpiData, policyData, claimsData, activityData] = await Promise.all([
+        getDashboardKPIs(advisor.id),
+        getPolicyDistribution(advisor.id),
+        getClaimsStatusDistribution(advisor.id),
+        getRecentActivities(advisor.id),
+      ]);
+      setKpis(kpiData);
+      setPolicyDist(policyData);
+      setClaimsDist(claimsData);
+      setActivities(activityData);
+    } catch (err) {
+      console.error("Error fetching dashboard data:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const getPolicyDistribution = () => {
-    if (!dashboardData) return [];
-    return dashboardData.policy_distribution.map(item => ({
-      name: item.type,
-      value: item.count,
-      count: item.count
-    }));
-  };
+  const kpiCards = kpis ? [
+    {
+      title: "Total Clients",
+      value: kpis.totalClients,
+      icon: Users,
+      iconBg: "bg-blue-100 dark:bg-blue-950/20",
+      iconColor: "text-blue-600",
+      link: "/dashboard/clients",
+    },
+    {
+      title: "Active Policies",
+      value: kpis.activePolicies,
+      icon: FileText,
+      iconBg: "bg-green-100 dark:bg-green-950/20",
+      iconColor: "text-green-600",
+      link: "/dashboard/policies",
+    },
+    {
+      title: "Expiring Soon",
+      value: kpis.expiringSoon,
+      icon: AlertTriangle,
+      iconBg: "bg-orange-100 dark:bg-orange-950/20",
+      iconColor: "text-orange-600",
+      link: "/dashboard/policies",
+    },
+    {
+      title: "Claims In Progress",
+      value: kpis.claimsInProgress,
+      icon: ClipboardList,
+      iconBg: "bg-purple-100 dark:bg-purple-950/20",
+      iconColor: "text-purple-600",
+      link: "/dashboard/claims",
+    },
+    {
+      title: "Pending Tasks",
+      value: kpis.pendingTasks,
+      icon: CheckSquare,
+      iconBg: "bg-cyan-100 dark:bg-cyan-950/20",
+      iconColor: "text-cyan-600",
+      link: "/dashboard/tasks",
+    },
+  ] : [];
 
-  const getClaimsStatus = () => {
-    if (!dashboardData) return [];
-    return [
-      { status: "In Progress", count: dashboardData.claims_status.in_progress },
-      { status: "Completed", count: dashboardData.claims_status.completed },
-      { status: "Started", count: dashboardData.claims_status.started },
-    ];
-  };
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
 
-  const kpiCards = getKpiCards();
-  const policyDistribution = getPolicyDistribution();
-  const claimsStatus = getClaimsStatus();
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  };
 
   if (loading) {
     return (
-      <div className="p-6 flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading dashboard data...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6 flex items-center justify-center min-h-[400px]">
-        <div className="text-center text-red-500">
-          <p>{error}</p>
-        </div>
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="size-8 animate-spin text-primary" />
+        <p className="ml-2 text-muted-foreground">Loading dashboard...</p>
       </div>
     );
   }
 
   return (
     <div className="p-6 space-y-6">
-      {/* Quick Actions Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <button className="px-4 py-2 bg-muted rounded-lg text-sm hover:bg-accent transition-colors border border-border">
-            Year: 2025
-          </button>
-          <button className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:opacity-90 transition-opacity flex items-center gap-2">
-            <Download className="size-4" />
-            Export CSV
-          </button>
-        </div>
-        <div className="flex gap-2">
-          <button className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm hover:opacity-90 transition-opacity flex items-center gap-2">
-            <Plus className="size-4" />
-            Add New Client
-          </button>
-          <button className="px-4 py-2 bg-card border border-border rounded-lg text-sm hover:bg-accent transition-colors flex items-center gap-2">
-            <Plus className="size-4" />
-            Add Policy
-          </button>
-          <button className="px-4 py-2 bg-card border border-border rounded-lg text-sm hover:bg-accent transition-colors flex items-center gap-2">
-            <Plus className="size-4" />
-            Create Task
-          </button>
-        </div>
+      {/* Welcome */}
+      <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent rounded-xl p-6 border border-border">
+        <h2 className="text-2xl font-semibold mb-1">
+          Welcome back, {advisor?.full_name?.split(' ')[0] || "Advisor"} 👋
+        </h2>
+        <p className="text-muted-foreground">Here's what's happening with your portfolio today.</p>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {kpiCards.map((card, index) => {
           const Icon = card.icon;
           return (
-            <div key={index} className="bg-card rounded-xl p-5 border border-border hover:shadow-lg transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div className={`${card.color} p-2.5 rounded-lg`}>
-                  <Icon className="size-5 text-white" />
+            <Link
+              key={index}
+              to={card.link}
+              className="bg-card rounded-xl p-5 border border-border hover:shadow-lg hover:border-primary/30 transition-all group"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`p-2 rounded-lg ${card.iconBg}`}>
+                  <Icon className={`size-5 ${card.iconColor}`} />
                 </div>
-                {card.trend === "up" ? (
-                  <TrendingUp className="size-4 text-green-500" />
-                ) : (
-                  <TrendingDown className="size-4 text-red-500" />
-                )}
+                <p className="text-sm text-muted-foreground">{card.title}</p>
               </div>
-              <p className="text-2xl font-semibold mb-1">{card.value}</p>
-              <p className="text-xs text-muted-foreground mb-2">{card.title}</p>
-              <div className="flex items-center gap-1">
-                <span className={`text-xs font-medium ${card.trend === "up" ? "text-green-500" : "text-red-500"}`}>
-                  {card.change}
-                </span>
-                <span className="text-xs text-muted-foreground">vs Last Year</span>
-              </div>
-            </div>
+              <p className="text-3xl font-bold">{card.value}</p>
+              <p className="text-xs text-primary mt-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                View details <ArrowRight className="size-3" />
+              </p>
+            </Link>
           );
         })}
       </div>
 
-      {/* Charts Row 1 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Client Growth Trend */}
-        <div className="lg:col-span-2 bg-card rounded-xl p-6 border border-border">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-lg font-semibold mb-1">Client Growth & Revenue Trend</h3>
-              <p className="text-sm text-muted-foreground">Monthly overview of client acquisition</p>
+      {/* Quick Actions */}
+      <div className="bg-card rounded-xl p-5 border border-border">
+        <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => setShowAddClient(true)}
+            className="px-4 py-2.5 bg-blue-50 dark:bg-blue-950/20 text-blue-600 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-950/40 transition-colors flex items-center gap-2 text-sm font-medium"
+          >
+            <Plus className="size-4" /> Add Client
+          </button>
+          <button
+            onClick={() => setShowAddPolicy(true)}
+            className="px-4 py-2.5 bg-green-50 dark:bg-green-950/20 text-green-600 rounded-lg hover:bg-green-100 dark:hover:bg-green-950/40 transition-colors flex items-center gap-2 text-sm font-medium"
+          >
+            <Plus className="size-4" /> Add Policy
+          </button>
+          <button
+            onClick={() => setShowAddTask(true)}
+            className="px-4 py-2.5 bg-purple-50 dark:bg-purple-950/20 text-purple-600 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-950/40 transition-colors flex items-center gap-2 text-sm font-medium"
+          >
+            <Plus className="size-4" /> Create Task
+          </button>
+          <Link
+            to="/dashboard/claims"
+            className="px-4 py-2.5 bg-orange-50 dark:bg-orange-950/20 text-orange-600 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-950/40 transition-colors flex items-center gap-2 text-sm font-medium"
+          >
+            <ClipboardList className="size-4" /> View Claims
+          </Link>
+        </div>
+      </div>
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Policy Distribution */}
+        <div className="bg-card rounded-xl p-5 border border-border">
+          <h3 className="text-lg font-semibold mb-4">Policy Distribution</h3>
+          {policyDist.length === 0 ? (
+            <div className="flex items-center justify-center h-64 text-muted-foreground">
+              <p>No policy data yet</p>
             </div>
-            <button className="p-2 hover:bg-muted rounded-lg transition-colors">
-              <ArrowUpRight className="size-5 text-muted-foreground" />
-            </button>
-          </div>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={clientGrowthData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="month" stroke="var(--muted-foreground)" />
-              <YAxis stroke="var(--muted-foreground)" />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'var(--card)', 
-                  border: '1px solid var(--border)',
-                  borderRadius: '8px'
-                }} 
-              />
-              <Legend />
-              <Line type="monotone" dataKey="clients" stroke="#ff6b35" strokeWidth={2} name="Total Clients" />
-              <Line type="monotone" dataKey="policies" stroke="#4ecdc4" strokeWidth={2} name="Active Policies" />
-            </LineChart>
-          </ResponsiveContainer>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie
+                  data={policyDist}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  paddingAngle={4}
+                  dataKey="count"
+                  nameKey="type"
+                  label={({ type, count }) => `${type} (${count})`}
+                >
+                  {policyDist.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
-        {/* Policy Distribution */}
-        <div className="bg-card rounded-xl p-6 border border-border">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-lg font-semibold mb-1">Policy Distribution</h3>
-              <p className="text-sm text-muted-foreground">By insurance type</p>
+        {/* Claims Status */}
+        <div className="bg-card rounded-xl p-5 border border-border">
+          <h3 className="text-lg font-semibold mb-4">Claims by Status</h3>
+          {claimsDist.length === 0 ? (
+            <div className="flex items-center justify-center h-64 text-muted-foreground">
+              <p>No claims data yet</p>
             </div>
-          </div>
-          {policyDistribution.length > 0 ? (
-            <>
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie
-                    data={policyDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {policyDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'var(--card)', 
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px'
-                    }} 
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-2 mt-4">
-                {policyDistribution.map((item, index) => (
-                  <div key={index} className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="size-3 rounded-full" 
-                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                      />
-                      <span className="text-muted-foreground">{item.name}</span>
-                    </div>
-                    <span className="font-medium">{item.value}%</span>
-                  </div>
-                ))}
-              </div>
-            </>
           ) : (
-            <div className="text-center py-12 text-muted-foreground">No policy data available</div>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={claimsDist}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="status" tick={{ fontSize: 12 }} />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="count" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           )}
         </div>
       </div>
 
-      {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Claims Status */}
-        <div className="bg-card rounded-xl p-6 border border-border">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-lg font-semibold mb-1">Claims Status</h3>
-              <p className="text-sm text-muted-foreground">Current claims overview</p>
-            </div>
-          </div>
-          {claimsStatus.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={claimsStatus}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="status" stroke="var(--muted-foreground)" tick={{ fontSize: 10 }} />
-                <YAxis stroke="var(--muted-foreground)" />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'var(--card)', 
-                    border: '1px solid var(--border)',
-                    borderRadius: '8px'
-                  }} 
-                />
-                <Bar dataKey="count" fill="#ff6b35" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">No claims data available</div>
-          )}
+      {/* Recent Activity */}
+      <div className="bg-card rounded-xl p-5 border border-border">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold">Recent Activity</h3>
+          <Link to="/dashboard/notifications" className="text-sm text-primary hover:underline">
+            View all
+          </Link>
         </div>
-
-        {/* AI Insights */}
-        <AIInsights />
-
-        {/* Recent Activities */}
-        <div className="bg-card rounded-xl p-6 border border-border">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Recent Activities</h3>
-            <button className="text-sm text-primary hover:underline">View All</button>
-          </div>
-          <div className="space-y-4">
-            {recentActivities.map((activity) => (
-              <div key={activity.id} className="flex items-start gap-3">
-                <div className="size-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs text-primary-foreground font-semibold">{activity.avatar}</span>
+        {activities.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4">No recent activity.</p>
+        ) : (
+          <div className="space-y-3">
+            {activities.map((activity) => (
+              <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors">
+                <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  {activity.entity_type === 'client' ? (
+                    <Users className="size-4 text-primary" />
+                  ) : (
+                    <Clock className="size-4 text-primary" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium mb-0.5">{activity.action}</p>
-                  <p className="text-sm text-muted-foreground mb-0.5">{activity.client}</p>
-                  <p className="text-xs text-muted-foreground">{activity.details}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{activity.time}</p>
+                  <p className="text-sm">
+                    {activity.action}
+                    {activity.entity_name && <strong className="ml-1">{activity.entity_name}</strong>}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{formatTime(activity.time)}</p>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Important Alerts */}
-      <div className="bg-card rounded-xl p-6 border border-border">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Important Alerts</h3>
-          <button className="text-sm text-primary hover:underline">View All</button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {alerts.map((alert, index) => (
-            <div 
-              key={index}
-              className={`p-4 rounded-lg border-l-4 ${
-                alert.type === "urgent" 
-                  ? "bg-red-50 dark:bg-red-950/20 border-red-500" 
-                  : alert.type === "warning"
-                  ? "bg-orange-50 dark:bg-orange-950/20 border-orange-500"
-                  : "bg-blue-50 dark:bg-blue-950/20 border-blue-500"
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <AlertCircle className={`size-5 flex-shrink-0 mt-0.5 ${
-                  alert.type === "urgent" 
-                    ? "text-red-500" 
-                    : alert.type === "warning"
-                    ? "text-orange-500"
-                    : "text-blue-500"
-                }`} />
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm mb-1">{alert.title}</p>
-                  <p className="text-xs text-muted-foreground mb-2">{alert.message}</p>
-                  <p className="text-xs text-muted-foreground">{alert.time}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Dialogs */}
+      {advisor && (
+        <>
+          <AddClientDialog advisorId={advisor.id} open={showAddClient} onClose={() => setShowAddClient(false)} onCreated={fetchDashboardData} />
+          <AddPolicyDialog advisorId={advisor.id} open={showAddPolicy} onClose={() => setShowAddPolicy(false)} onCreated={fetchDashboardData} />
+          <AddTaskDialog advisorId={advisor.id} open={showAddTask} onClose={() => setShowAddTask(false)} onCreated={fetchDashboardData} />
+        </>
+      )}
     </div>
   );
 }
